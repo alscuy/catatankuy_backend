@@ -1,6 +1,4 @@
 import mysql from 'mysql2/promise';
-import fs from 'fs';
-import path from 'path';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -9,13 +7,7 @@ const useSSL = process.env.DB_SSL === 'true';
 let sslConfig: any = undefined;
 
 if (useSSL) {
-  const caPath = path.join(__dirname, '..', 'ca.pem');
-  if (fs.existsSync(caPath)) {
-    sslConfig = { ca: fs.readFileSync(caPath), rejectUnauthorized: true };
-  } else {
-    console.warn('⚠️ ca.pem tidak ditemukan, SSL tanpa verifikasi CA');
-    sslConfig = { rejectUnauthorized: false };
-  }
+  sslConfig = { rejectUnauthorized: false };
 }
 
 export const pool = mysql.createPool({
