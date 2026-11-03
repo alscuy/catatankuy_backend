@@ -53,8 +53,9 @@ router.post('/:id/share', async (req: AuthRequest, res) => {
     await query('INSERT INTO note_shares (note_id, owner_id, share_token) VALUES (?, ?, ?)', 
       [noteId, req.user!.id, token]);
   }
-
-  return ok(res, { token, link: `http://localhost:5000/api/shares/public/${token}` }, 'Link berhasil');
+// GANTI BARIS INI:
+const baseUrl = process.env.BASE_URL || 'https://catatankuy-backend.vercel.app';
+return ok(res, { token, link: `${baseUrl}/api/shares/public/${token}` }, 'Link berhasil');
 });
 
 export default router;

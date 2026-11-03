@@ -9,7 +9,8 @@ import fs from 'fs';
 
 const router = Router();
 router.use(auth);
-const upload = multer({ dest: 'uploads/' });
+// GANTI BARIS INI:
+const upload = multer({ dest: '/tmp/' });
 
 async function getNoteAccess(noteId: number, userId: number) {
   const notes = await query<NoteRow>('SELECT * FROM notes WHERE id = ?', [noteId]);

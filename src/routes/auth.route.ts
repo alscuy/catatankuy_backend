@@ -11,7 +11,8 @@ import fs from 'fs';
 
 const router = Router();
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const uploadProfile = multer({ dest: 'uploads/' });
+// GANTI BARIS INI:
+const uploadProfile = multer({ dest: '/tmp/' }); 
 
 // REGISTER
 router.post('/register', async (req, res) => {

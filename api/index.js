@@ -1,2 +1,2 @@
-const app = require('../dist/server.ts').default;
+const app = require('../dist/server.js').default;
 module.exports = app;
