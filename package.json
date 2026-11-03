@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "nodemon --watch src --ext ts --exec \"ts-node src/server.ts\"",
-    "build": "tsc",
-    "start": "node dist/server.js"
+  "build": "tsc",
+  "vercel-build": "tsc",
+  "start": "node dist/server.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -16,7 +16,8 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.5.0",
     "mysql2": "^3.11.0",
-    "uuid": "^14.0.3"
+    "uuid": "^14.0.3",
+    "vercel": "^65.9.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
