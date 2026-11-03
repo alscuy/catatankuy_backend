@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db';
 import auth from '../middleware/auth.middleware';
 import { ok, created, fail } from '../utils/response';
+import wrap from '../utils/handle';
 import { AuthRequest, NoteRow } from '../types';
 import { uploadBase64ToCloudinary, uploadFileToCloudinary } from '../utils/cloudinary';
 import { validateBase64Image } from '../utils/image';
@@ -27,26 +28,31 @@ async function getNoteAccess(noteId: number, userId: number) {
   return { role: null as 'owner' | 'shared' | null, note };
 }
 
+// Terima true (JSON), 'true' (form), atau 1 supaya "Sematkan" selalu tersimpan
+function isPinnedValue(v: any): number {
+  return v === true || v === 'true' || v === 1 || v === '1' ? 1 : 0;
+}
+
 // GET ALL
-router.get('/', async (req: AuthRequest, res) => {
+router.get('/', wrap(async (req: AuthRequest, res) => {
   const rows = await query('SELECT * FROM notes WHERE user_id = ? ORDER BY updated_at DESC', [req.user!.id]);
   return ok(res, rows);
-});
+}));
 
 // GET DETAIL (Tambahin ini biar Flutter bisa lihat detail)
-router.get('/:id', async (req: AuthRequest, res) => {
+router.get('/:id', wrap(async (req: AuthRequest, res) => {
   const { role, note } = await getNoteAccess(Number(req.params.id), req.user!.id);
   if (!role || !note) return fail(res, 'Catatan tidak ditemukan', 404);
   return ok(res, { ...note, role });
-});
+}));
 
 // CREATE
-router.post('/', upload.single('image'), async (req: AuthRequest, res) => {
+router.post('/', upload.single('image'), wrap(async (req: AuthRequest, res) => {
   const { title, content, color, is_pinned, image_base64 } = req.body || {};
   if (!title || !content) return fail(res, 'Judul dan isi wajib diisi');
 
   let imageUrl = null;
-  // Flutter Kirim gambar jadi base64 di body JSON
+  // Flutter kirim gambar jadi base64 di body JSON
   if (image_base64) {
     const v = validateBase64Image(image_base64);
     if (!v.valid) return fail(res, v.message ?? 'Format gambar tidak valid');
@@ -71,15 +77,10 @@ router.post('/', upload.single('image'), async (req: AuthRequest, res) => {
   );
   const note = (await query('SELECT * FROM notes WHERE id = ?', [result.insertId]))[0];
   return created(res, note, 'Catatan dibuat');
-});
-
-// Terima true (JSON), 'true' (form), atau 1 supaya "Sematkan" selalu tersimpan
-function isPinnedValue(v: any): number {
-  return v === true || v === 'true' || v === 1 || v === '1' ? 1 : 0;
-}
+}));
 
 // UPDATE (Untuk lengkapi CRUD)
-router.put('/:id', async (req: AuthRequest, res) => {
+router.put('/:id', wrap(async (req: AuthRequest, res) => {
   const noteId = Number(req.params.id);
   const notes = await query<NoteRow>('SELECT * FROM notes WHERE id = ?', [noteId]);
   const note = notes[0];
@@ -116,10 +117,10 @@ router.put('/:id', async (req: AuthRequest, res) => {
 
   const updated = (await query('SELECT * FROM notes WHERE id = ?', [noteId]))[0];
   return ok(res, updated, 'Catatan diperbarui');
-});
+}));
 
-// Sematic/demat cepat (khusus is_pinned)
-router.put('/:id/pin', async (req: AuthRequest, res) => {
+// Sematkan/demat cepat (khusus is_pinned)
+router.put('/:id/pin', wrap(async (req: AuthRequest, res) => {
   const noteId = Number(req.params.id);
   const notes = await query<NoteRow>('SELECT * FROM notes WHERE id = ?', [noteId]);
   const note = notes[0];
@@ -131,14 +132,14 @@ router.put('/:id/pin', async (req: AuthRequest, res) => {
   const pinned = isPinnedValue(is_pinned);
   await query('UPDATE notes SET is_pinned = ? WHERE id = ?', [pinned, note.id]);
   return ok(res, { id: note.id, is_pinned: pinned }, pinned ? 'Catatan disematkan' : 'Sematan dilepas');
-});
+}));
 
 // DELETE
-router.delete('/:id', async (req: AuthRequest, res) => {
+router.delete('/:id', wrap(async (req: AuthRequest, res) => {
   const { role, note } = await getNoteAccess(Number(req.params.id), req.user!.id);
   if (role !== 'owner' || !note) return fail(res, 'Akses ditolak', 404);
   await query('DELETE FROM notes WHERE id = ?', [note.id]);
   return ok(res, null, 'Catatan dihapus');
-});
+}));
 
-export default router;  
+export default router;

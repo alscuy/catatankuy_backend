@@ -2,8 +2,9 @@ import { Response, NextFunction } from 'express';
 import { query } from '../db';
 import { verifyToken } from '../utils/jwt';
 import { AuthRequest } from '../types';
+import wrap from '../utils/handle';
 
-export default async function auth(req: AuthRequest, res: Response, next: NextFunction) {
+export default wrap(async function auth(req: AuthRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) return res.status(401).json({ success: false, message: 'Token tidak ditemukan' });
@@ -19,4 +20,4 @@ export default async function auth(req: AuthRequest, res: Response, next: NextFu
   } catch {
     return res.status(401).json({ success: false, message: 'Token tidak valid atau kadaluarsa' });
   }
-}
+});

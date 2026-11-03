@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { query } from '../db';
 import auth from '../middleware/auth.middleware';
 import { ok } from '../utils/response';
+import wrap from '../utils/handle';
 import { AuthRequest } from '../types';
 
 const router = Router();
 router.use(auth);
 
-router.get('/summary', async (req: AuthRequest, res) => {
+router.get('/summary', wrap(async (req: AuthRequest, res) => {
   const uid = req.user!.id;
 
   const [totalNotes, totalPinned] = await Promise.all([
@@ -35,6 +36,6 @@ router.get('/summary', async (req: AuthRequest, res) => {
     total_shared_with_me: totalShared[0].c,
     recent_notes: recent,
   });
-});
+}));
 
 export default router;

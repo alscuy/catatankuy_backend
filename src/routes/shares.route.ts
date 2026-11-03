@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { query } from '../db';
 import auth from '../middleware/auth.middleware';
-import { ok, created, fail } from '../utils/response';
+import { ok, fail } from '../utils/response';
+import wrap from '../utils/handle';
 import { AuthRequest, NoteRow } from '../types';
 import { randomUUID } from 'crypto';
 const router = Router()
 
 // ENDPOINT PUBLIC (TANPA LOGIN)
-router.get('/public/:token', async (req, res) => {
+router.get('/public/:token', wrap(async (req, res) => {
   const rows = await query(
     `SELECT n.*, u.name AS owner_name FROM note_shares s
      JOIN notes n ON n.id = s.note_id
@@ -16,25 +17,26 @@ router.get('/public/:token', async (req, res) => {
   );
   if (rows.length === 0) return fail(res, 'Link tidak valid', 404);
   return ok(res, rows[0]);
-});
+}));
 
 // Sisanya butuh login
 router.use(auth);
 
 // GET notes yang dibagikan ke saya (via link)
-router.get('/shared-with-me', async (req: AuthRequest, res) => {
+router.get('/shared-with-me', wrap(async (req: AuthRequest, res) => {
   const rows = await query(`
-    SELECT n.*, u.name AS owner_name, s.share_token 
-    FROM notes n 
+    SELECT n.*, u.name AS owner_name, s.share_token
+    FROM notes n
     JOIN users u ON u.id = n.user_id
     JOIN note_shares s ON s.note_id = n.id
-    WHERE n.user_id != ?
+    WHERE s.share_token IS NOT NULL
+      AND s.owner_id != ?
   `, [req.user!.id]);
   return ok(res, rows);
-});
+}));
 
 // GET semua link share yang AKU buat (Untuk lengkapi CRUD)
-router.get('/mine', async (req: AuthRequest, res) => {
+router.get('/mine', wrap(async (req: AuthRequest, res) => {
   const rows = await query(`
     SELECT s.note_id, s.owner_id, s.share_token, n.title, n.updated_at
     FROM note_shares s
@@ -43,10 +45,10 @@ router.get('/mine', async (req: AuthRequest, res) => {
     ORDER BY n.updated_at DESC
   `, [req.user!.id]);
   return ok(res, rows);
-});
+}));
 
 // CABUT LINK (Untuk lengkapi CRUD)
-router.delete('/mine/:noteId', async (req: AuthRequest, res) => {
+router.delete('/mine/:noteId', wrap(async (req: AuthRequest, res) => {
   const noteId = Number(req.params.noteId);
   const shares = await query('SELECT * FROM note_shares WHERE note_id = ?', [noteId]);
   const share = shares[0] as any;
@@ -56,30 +58,31 @@ router.delete('/mine/:noteId', async (req: AuthRequest, res) => {
 
   await query('DELETE FROM note_shares WHERE note_id = ?', [noteId]);
   return ok(res, null, 'Link bagikan dibatalkan');
-});
+}));
 
 // GENERATE LINK (Owner only)
-router.post('/:id/share', async (req: AuthRequest, res) => {
+const strippedBase = () => (process.env.BASE_URL || 'https://catatankuy-backend.vercel.app').replace(/\/+$/, '');
+
+router.post('/:id/share', wrap(async (req: AuthRequest, res) => {
   const noteId = Number(req.params.id);
   const notes = await query<NoteRow>('SELECT * FROM notes WHERE id = ?', [noteId]);
   const note = notes[0];
-  
+
   if (!note) return fail(res, 'Catatan tidak ditemukan', 404);
   if (note.user_id !== req.user!.id) return fail(res, 'Hanya pemilik yang bisa share', 403);
 
   let shareRows = await query('SELECT share_token FROM note_shares WHERE note_id = ?', [noteId]);
-  let token = '';
-  
-  if (shareRows.length > 0) {
-    token = (shareRows[0] as any).share_token;
-  } else {
-   token = randomUUID();
-    await query('INSERT INTO note_shares (note_id, owner_id, share_token) VALUES (?, ?, ?)', 
-      [noteId, req.user!.id, token]);
+  const token = (shareRows[0] as any)?.share_token;
+
+  if (token) {
+    // sudah punya link, pakai ulang token lama
+    return ok(res, { token, link: `${strippedBase()}/api/shares/public/${token}` }, 'Link berhasil');
   }
-// GANTI BARIS INI:
-const baseUrl = process.env.BASE_URL || 'https://catatankuy-backend.vercel.app';
-return ok(res, { token, link: `${baseUrl}/api/shares/public/${token}` }, 'Link berhasil');
-});
+
+  const newToken = randomUUID();
+  await query('INSERT INTO note_shares (note_id, owner_id, share_token) VALUES (?, ?, ?)',
+    [noteId, req.user!.id, newToken]);
+  return ok(res, { token: newToken, link: `${strippedBase()}/api/shares/public/${newToken}` }, 'Link berhasil');
+}));
 
 export default router;
