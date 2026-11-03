@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "dist/server.js",
   "scripts": {
-  "build": "tsc",
-  "vercel-build": "tsc",
-  "start": "node dist/server.js"
+    "build": "tsc",
+    "vercel-build": "tsc",
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -16,7 +16,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.5.0",
     "mysql2": "^3.11.0",
-    "uuid": "^14.0.3",
+    "uuid": "^11.1.1",
     "vercel": "^65.9.0"
   },
   "devDependencies": {
