@@ -7,7 +7,8 @@ import { ok, created, fail } from '../utils/response';
 import wrap from '../utils/handle';
 import { AuthRequest, UserRow } from '../types';
 import multer from 'multer';
-import { uploadFileToCloudinary } from '../utils/cloudinary';
+import { uploadBase64ToCloudinary, uploadFileToCloudinary } from '../utils/cloudinary';
+import { validateBase64Image } from '../utils/image';
 import fs from 'fs';
 
 const router = Router();
@@ -64,6 +65,29 @@ router.get('/me', auth, wrap(async (req: AuthRequest, res) => {
   const rows = await query('SELECT id, name, email, avatar_url, created_at FROM users WHERE id = ?', [req.user!.id]);
   if (rows.length === 0) return fail(res, 'User tidak ditemukan', 404);
   return ok(res, rows[0]);
+}));
+
+// UPDATE PROFILE (dipakai Flutter: JSON {name?, avatar_base64?})
+router.put('/me', auth, wrap(async (req: AuthRequest, res) => {
+  const { name, avatar_base64 } = req.body || {};
+  if (name !== undefined && !String(name).trim()) return fail(res, 'Nama tidak boleh kosong');
+
+  let avatarUrl: string | null | undefined = undefined;
+  if (avatar_base64) {
+    const v = validateBase64Image(avatar_base64);
+    if (!v.valid) return fail(res, v.message ?? 'Format gambar tidak valid');
+    try {
+      avatarUrl = await uploadBase64ToCloudinary(avatar_base64);
+    } catch (error: any) {
+      return fail(res, error.message ?? 'Gagal upload avatar');
+    }
+  }
+
+  if (name !== undefined) await query('UPDATE users SET name = ? WHERE id = ?', [String(name).trim(), req.user!.id]);
+  if (avatarUrl !== undefined) await query('UPDATE users SET avatar_url = ? WHERE id = ?', [avatarUrl, req.user!.id]);
+
+  const user = (await query('SELECT id, name, email, avatar_url, created_at FROM users WHERE id = ?', [req.user!.id]))[0];
+  return ok(res, user, 'Profil diperbarui');
 }));
 
 // UPDATE PROFILE (Nama & Avatar)
