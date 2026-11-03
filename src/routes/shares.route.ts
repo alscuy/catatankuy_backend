@@ -3,8 +3,7 @@ import { query } from '../db';
 import auth from '../middleware/auth.middleware';
 import { ok, created, fail } from '../utils/response';
 import { AuthRequest, NoteRow } from '../types';
-import { v4 as uuidv4 } from 'uuid';
-
+import { randomUUID } from 'crypto';
 const router = Router()
 
 // ENDPOINT PUBLIC (TANPA LOGIN)
@@ -49,7 +48,7 @@ router.post('/:id/share', async (req: AuthRequest, res) => {
   if (shareRows.length > 0) {
     token = (shareRows[0] as any).share_token;
   } else {
-    token = uuidv4();
+   token = randomUUID();
     await query('INSERT INTO note_shares (note_id, owner_id, share_token) VALUES (?, ?, ?)', 
       [noteId, req.user!.id, token]);
   }
