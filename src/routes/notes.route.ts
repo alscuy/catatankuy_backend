@@ -3,7 +3,8 @@ import { query } from '../db';
 import auth from '../middleware/auth.middleware';
 import { ok, created, fail } from '../utils/response';
 import { AuthRequest, NoteRow } from '../types';
-import { uploadFileToCloudinary } from '../utils/cloudinary';
+import { uploadBase64ToCloudinary, uploadFileToCloudinary } from '../utils/cloudinary';
+import { validateBase64Image } from '../utils/image';
 import multer from 'multer';
 import fs from 'fs';
 
@@ -41,11 +42,20 @@ router.get('/:id', async (req: AuthRequest, res) => {
 
 // CREATE
 router.post('/', upload.single('image'), async (req: AuthRequest, res) => {
-  const { title, content, color, is_pinned } = req.body || {};
+  const { title, content, color, is_pinned, image_base64 } = req.body || {};
   if (!title || !content) return fail(res, 'Judul dan isi wajib diisi');
 
   let imageUrl = null;
-  if (req.file) {
+  // Flutter Kirim gambar jadi base64 di body JSON
+  if (image_base64) {
+    const v = validateBase64Image(image_base64);
+    if (!v.valid) return fail(res, v.message ?? 'Format gambar tidak valid');
+    try {
+      imageUrl = await uploadBase64ToCloudinary(image_base64);
+    } catch (error: any) {
+      return fail(res, error.message ?? 'Gagal upload gambar');
+    }
+  } else if (req.file) {
     try {
       imageUrl = await uploadFileToCloudinary(req.file.path);
       fs.unlinkSync(req.file.path);
@@ -57,10 +67,70 @@ router.post('/', upload.single('image'), async (req: AuthRequest, res) => {
 
   const result: any = await query(
     'INSERT INTO notes (user_id, title, content, color, is_pinned, image_url) VALUES (?, ?, ?, ?, ?, ?)',
-    [req.user!.id, title, content, color || '#FFF9C4', is_pinned === 'true' ? 1 : 0, imageUrl]
+    [req.user!.id, title, content, color || '#FFF9C4', isPinnedValue(is_pinned), imageUrl]
   );
   const note = (await query('SELECT * FROM notes WHERE id = ?', [result.insertId]))[0];
   return created(res, note, 'Catatan dibuat');
+});
+
+// Terima true (JSON), 'true' (form), atau 1 supaya "Sematkan" selalu tersimpan
+function isPinnedValue(v: any): number {
+  return v === true || v === 'true' || v === 1 || v === '1' ? 1 : 0;
+}
+
+// UPDATE (Untuk lengkapi CRUD)
+router.put('/:id', async (req: AuthRequest, res) => {
+  const noteId = Number(req.params.id);
+  const notes = await query<NoteRow>('SELECT * FROM notes WHERE id = ?', [noteId]);
+  const note = notes[0];
+
+  if (!note) return fail(res, 'Catatan tidak ditemukan', 404);
+  if (note.user_id !== req.user!.id) return fail(res, 'Hanya pemilik yang bisa mengedit', 403);
+
+  const { title, content, color, is_pinned, image_base64 } = req.body || {};
+  if (title !== undefined && !String(title).trim()) return fail(res, 'Judul wajib diisi');
+  if (content !== undefined && !String(content).trim()) return fail(res, 'Isi wajib diisi');
+
+  let imageUrl = note.image_url;
+  if (image_base64) {
+    const v = validateBase64Image(image_base64);
+    if (!v.valid) return fail(res, v.message ?? 'Format gambar tidak valid');
+    try {
+      imageUrl = await uploadBase64ToCloudinary(image_base64);
+    } catch (error: any) {
+      return fail(res, error.message ?? 'Gagal upload gambar');
+    }
+  }
+
+  await query(
+    'UPDATE notes SET title = ?, content = ?, color = ?, is_pinned = ?, image_url = ? WHERE id = ?',
+    [
+      title !== undefined ? String(title).trim() : note.title,
+      content !== undefined ? String(content) : note.content,
+      color ? color : note.color,
+      is_pinned === undefined ? note.is_pinned : isPinnedValue(is_pinned),
+      imageUrl,
+      note.id,
+    ]
+  );
+
+  const updated = (await query('SELECT * FROM notes WHERE id = ?', [noteId]))[0];
+  return ok(res, updated, 'Catatan diperbarui');
+});
+
+// Sematic/demat cepat (khusus is_pinned)
+router.put('/:id/pin', async (req: AuthRequest, res) => {
+  const noteId = Number(req.params.id);
+  const notes = await query<NoteRow>('SELECT * FROM notes WHERE id = ?', [noteId]);
+  const note = notes[0];
+
+  if (!note) return fail(res, 'Catatan tidak ditemukan', 404);
+  if (note.user_id !== req.user!.id) return fail(res, 'Hanya pemilik yang bisa menyematkan', 403);
+
+  const { is_pinned } = req.body || {};
+  const pinned = isPinnedValue(is_pinned);
+  await query('UPDATE notes SET is_pinned = ? WHERE id = ?', [pinned, note.id]);
+  return ok(res, { id: note.id, is_pinned: pinned }, pinned ? 'Catatan disematkan' : 'Sematan dilepas');
 });
 
 // DELETE

@@ -33,6 +33,31 @@ router.get('/shared-with-me', async (req: AuthRequest, res) => {
   return ok(res, rows);
 });
 
+// GET semua link share yang AKU buat (Untuk lengkapi CRUD)
+router.get('/mine', async (req: AuthRequest, res) => {
+  const rows = await query(`
+    SELECT s.note_id, s.owner_id, s.share_token, n.title, n.updated_at
+    FROM note_shares s
+    JOIN notes n ON n.id = s.note_id
+    WHERE s.owner_id = ?
+    ORDER BY n.updated_at DESC
+  `, [req.user!.id]);
+  return ok(res, rows);
+});
+
+// CABUT LINK (Untuk lengkapi CRUD)
+router.delete('/mine/:noteId', async (req: AuthRequest, res) => {
+  const noteId = Number(req.params.noteId);
+  const shares = await query('SELECT * FROM note_shares WHERE note_id = ?', [noteId]);
+  const share = shares[0] as any;
+
+  if (!share) return fail(res, 'Catatan ini belum dibagikan', 404);
+  if (share.owner_id !== req.user!.id) return fail(res, 'Hanya pemilik yang bisa membatalkan share', 403);
+
+  await query('DELETE FROM note_shares WHERE note_id = ?', [noteId]);
+  return ok(res, null, 'Link bagikan dibatalkan');
+});
+
 // GENERATE LINK (Owner only)
 router.post('/:id/share', async (req: AuthRequest, res) => {
   const noteId = Number(req.params.id);
