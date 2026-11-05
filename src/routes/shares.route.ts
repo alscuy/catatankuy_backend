@@ -3,11 +3,16 @@ import { query } from '../db';
 import auth from '../middleware/auth.middleware';
 import { ok, fail } from '../utils/response';
 import wrap from '../utils/handle';
+import { renderSharePage } from '../utils/share_page';
 import { AuthRequest, NoteRow } from '../types';
 import { randomUUID } from 'crypto';
 const router = Router()
 
 // ENDPOINT PUBLIC (TANPA LOGIN)
+// Content negotiation:
+//  - Aplikasi Flutter kirim Accept: application/json -> respons JSON (data catatan)
+//  - Link dibuka di Chrome/browser                  -> halaman HTML cantik
+//    + tombol & auto-redirect buat nge-buka aplikasi Android
 router.get('/public/:token', wrap(async (req, res) => {
   const rows = await query(
     `SELECT n.*, u.name AS owner_name FROM note_shares s
@@ -15,6 +20,13 @@ router.get('/public/:token', wrap(async (req, res) => {
      JOIN users u ON u.id = s.owner_id
      WHERE s.share_token = ?`, [req.params.token]
   );
+
+  const wantsJson = String(req.headers.accept || '').includes('application/json');
+  if (!wantsJson) {
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    return res.status(rows.length ? 200 : 404).send(renderSharePage(rows[0] ?? null));
+  }
+
   if (rows.length === 0) return fail(res, 'Link tidak valid', 404);
   return ok(res, rows[0]);
 }));
