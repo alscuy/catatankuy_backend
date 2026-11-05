@@ -48,6 +48,7 @@ export function renderSharePage(note: any): string {
   const imageUrl = note.image_url ? esc(note.image_url) : '';
   // Warna kartu catatan (format #RRGGBB dari aplikasi); fallback ungu CatatanKuy
   const cardColor = /^#[0-9A-Fa-f]{3,8}$/.test(String(note.color || '')) ? esc(note.color) : '#FFF9C4';
+  const apkUrl = `${BASE_URL}/catatankuy_download/catatankuy.apk`;
 
   return fullPage(`
     <div class="card" id="note">
@@ -59,13 +60,19 @@ export function renderSharePage(note: any): string {
       </div>
     </div>
     <a class="btn primary" href="${esc(intent)}">Buka di aplikasi CatatanKuy</a>
-    <p class="hint">Otomatis membuka aplikasi Android beberapa detik lagi. Kalau belum terpasang, lakukan <a href="${esc(BASE_URL)}">install CatatanKuy</a> terlebih dahulu.</p>
+    <a class="btn secondary" href="${esc(apkUrl)}" download>Download APK (Android)</a>
+    <p class="hint">Belum punya aplikasinya? Download APK itu sekali saja, pasang, lalu klik link share ini lagi &mdash; catatan bakal langsung kebuka di aplikasi.</p>
     <script>
-      // Coba buka aplikasi otomatis (intent:// di-filter Chrome Android)
-      setTimeout(function () {
-        var w = window.open('${esc(intent).replace(/'/g, "\\'")}', '_self');
-        if (w) try { w.close(); } catch (e) {}
-      }, 2000);
+      // Coba buka aplikasi SATU kali per sesi tab (anti-loop: kalau APK belum
+      // dipasang, jangan nge-redirect bolak-balik terus ke halaman ini).
+      try {
+        if (sessionStorage.getItem('ck_intent_try') !== '1') {
+          sessionStorage.setItem('ck_intent_try', '1');
+          setTimeout(function () {
+            window.location.href = '${esc(intent).replace(/'/g, "\\'")}';
+          }, 1500);
+        }
+      } catch (e) {}
     </script>`);
 }
 
@@ -103,6 +110,11 @@ function fullPage(body: string): string {
       background: #fff; color: #6C4DFF; font-weight: 800; text-decoration: none;
       padding: 14px 22px; border-radius: 16px; font-size: 15px;
       box-shadow: 0 8px 24px rgba(0,0,0,.18); display: inline-block; margin-top: 4px;
+    }
+    .btn.secondary {
+      background: rgba(255,255,255,.18); color: #fff; font-weight: 700; text-decoration: none;
+      padding: 12px 20px; border-radius: 16px; font-size: 14px;
+      border: 1px solid rgba(255,255,255,.5); display: inline-block; margin-top: 10px;
     }
     .icon { font-size: 40px; margin-bottom: 10px; }
     .icon.err::after { content: ''; }
