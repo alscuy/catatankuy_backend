@@ -4,9 +4,17 @@
     {
       "src": "api/index.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "catatankuy_download/**",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
+    {
+      "src": "/catatankuy_download/(.*)",
+      "dest": "/catatankuy_download/$1"
+    },
     {
       "src": "/(.*)",
       "dest": "api/index.js"
